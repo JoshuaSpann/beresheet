@@ -1,29 +1,33 @@
 ; This was written for FASM, may need adjustments for NASM
 org 0x7c00		; Set the base address offset for bootloader
 
-mov ax, 98		; printc param: Char to print (ASCII value)
-call printc		; Let's print the char in ax!
-
+call scb
 mov ax, os		; print param: the address of the string to print
 call print		; Let's print until we find a string terminator (0)!
 
 input_loop:
+  mov ax, '>'		; printc param: Char to print (ASCII value)
+  call printc		; Let's print the char in ax!
+
   mov ax, 0x9000	; read param: address to read to
   mov bx, 13		; read param: what terminates read input (enter key)
   call read		; Let's read data until the char in bx is pressed
-  call print		; Since we want to print and ax is also the address to print, we can skip moving the address again and just call it
 
-  mov ax, 0x9000	; strcmp param: first comparison string address
-  mov bx, cmd_tst	; strcmp param: second comparison string address
+  mov bx, cmd_cls	; strcmp param: second comparison string address (first string's address in ax already)
   call strcmp		; Compare string at addresses ax to string at address bx
-  cmp dx, 1		; If strings don't match
-  je print_debug	; Print a debug message
+  cmp dx, 0		; If strings match
+  je clear_screen
 jmp input_loop		; Let's make it like a terminal
 
-print_debug:
+print_invalid_command_msg:
   mov ax, msg_cmd_invalid
-  call print
-  jmp input_loop
+  call print		; Prints message string from address in ax
+  jmp input_loop	; Sloppy return to main loop
+
+clear_screen:
+  call scb		; BIOS way of clearing screen
+  jmp input_loop	; Sloppy return to main loop
+
 jmp $			; Forever jump to the address of the current position before emitting the bytes
 
 ;----------------;
@@ -31,6 +35,7 @@ jmp $			; Forever jump to the address of the current position before emitting th
 ; Variables ;
 
 os: db 'beresheet',0	; An unimportant string that we can overwrite
+cmd_cls: db 'cls',0
 cmd_tst: db 'tst',0
 msg_cmd_invalid: db 'Invalid Command',0
 
@@ -147,6 +152,15 @@ read:
   call printl		; Pretty print after the terminator has been made!
   popa			; Or are we just covering our tracks all along?!
   ret			; Go talk to mom about it
+
+; Clears the Screen via BIOS
+scb:
+  pusha
+  mov ah, 0
+  mov al, 0x03
+  int 10h
+  popa
+  ret
 
 ;----------------;
 
