@@ -8,11 +8,22 @@ mov ax, os		; print param: the address of the string to print
 call print		; Let's print until we find a string terminator (0)!
 
 input_loop:
- mov ax, 0x9000		; read param: address to read to
- mov bx, 'z'		; read param: what terminates read input
- call read		; Let's read data until the char in bx is pressed
- call print		; Since we want to print and ax is also the address to print, we can skip moving the address again and just call it
+  mov ax, 0x9000	; read param: address to read to
+  mov bx, 13		; read param: what terminates read input (enter key)
+  call read		; Let's read data until the char in bx is pressed
+  call print		; Since we want to print and ax is also the address to print, we can skip moving the address again and just call it
+
+  mov ax, 0x9000		; strcmp param: first comparison string address
+  mov bx, cmd_tst	; strcmp param: second comparison string address
+  call strcmp		; Compare string at addresses ax to string at address bx
+  cmp dx, 1		; If strings don't match
+  je print_debug		; Print a debug message
 jmp input_loop		; Let's make it like a terminal
+
+print_debug:
+  mov ax, msg_cmd_invalid
+  call print
+  jmp input_loop
 
 jmp $			; Forever jump to the address of the current position before emitting the bytes
 
@@ -21,10 +32,44 @@ jmp $			; Forever jump to the address of the current position before emitting th
 ; Variables ;
 
 os: db 'beresheet',0	; An unimportant string that we can overwrite
+cmd_tst: db 'tst',0
+msg_cmd_invalid: db 'Invalid Command',0
 
 ;----------------;
 
 ; PROCEDURES ;
+
+; PARAM: ax holds address of first string to compare
+; PARAM: bx holds address of second string to compare
+; RETURN:dx holds status flag of procedure after execution
+strcmp:
+  mov [0x7ea0], ax	; It sorta makes sense to store ax in an address with a
+  mov [0x7eb0], bx	; It sorta makes sense to store bx in an address with b
+  pusha			; Keep it clean
+  mov cx, 0		; Use the counter for mem address offset
+  strcmp_loop:
+    mov ax, [0x7ea0]	; Get the first string base address and move to ax
+    add ax, cx		; Apply offset to mem address stored in ax
+    mov bx, ax		; We need bx to access mem location via pointer
+    mov al, [bx]	; Get char from address to al
+    mov bx, [0x7eb0]	; Get the second string base address and move it to bx
+    add bx, cx		; Apply offset to mem address stored in bx
+    mov bl, [bx]	; Get char from 2nd address to bl
+    cmp al, bl		; See if the chars match
+    jne strcmp_exit_bad	; No match leaves with exit 1, else continues
+    cmp al, 0		; Is al string terminator?
+    je strcmp_exit_ok	; If al is string terminator, bl is too so exit 0
+  jmp strcmp_loop
+  strcmp_exit_bad:
+    mov dx, 1
+    jmp strcmp_exit
+  strcmp_exit_ok:
+    mov dx, 0
+  strcmp_exit:
+    mov [0x7f00], dx	; dx is the return address for all procedures right now
+  popa
+  mov dx, [0x7f00]
+  ret
 
 ; PARAM: ax holds address of string to print
 ; CALLS: printl for \r\n\n clean line print
@@ -87,7 +132,6 @@ read:
     add bx, cx		; Let's apply the offset so we dont overwrite the 1st char
     mov [bx], al	; Let's put the char value to the address in mem
     add cx, 1		; Moving on... (to the next address)
-    ;mov ax, al
     call printc		; Let's print the current char (already setup for us, printc sets ah for us to print properly)
     jmp read_loop	; Continue until we reach the terminator
   read_exit:		; The exit point for the above loop
