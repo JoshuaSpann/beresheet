@@ -13,18 +13,17 @@ input_loop:
   call read		; Let's read data until the char in bx is pressed
   call print		; Since we want to print and ax is also the address to print, we can skip moving the address again and just call it
 
-  mov ax, 0x9000		; strcmp param: first comparison string address
+  mov ax, 0x9000	; strcmp param: first comparison string address
   mov bx, cmd_tst	; strcmp param: second comparison string address
   call strcmp		; Compare string at addresses ax to string at address bx
   cmp dx, 1		; If strings don't match
-  je print_debug		; Print a debug message
+  je print_debug	; Print a debug message
 jmp input_loop		; Let's make it like a terminal
 
 print_debug:
   mov ax, msg_cmd_invalid
   call print
   jmp input_loop
-
 jmp $			; Forever jump to the address of the current position before emitting the bytes
 
 ;----------------;
@@ -42,6 +41,7 @@ msg_cmd_invalid: db 'Invalid Command',0
 ; PARAM: ax holds address of first string to compare
 ; PARAM: bx holds address of second string to compare
 ; RETURN:dx holds status flag of procedure after execution
+; Compares 2 strings in memory addresses stored in ax and bx, returning 0 for match and 1 for diff in dx
 strcmp:
   mov [0x7ea0], ax	; It sorta makes sense to store ax in an address with a
   mov [0x7eb0], bx	; It sorta makes sense to store bx in an address with b
@@ -59,16 +59,17 @@ strcmp:
     jne strcmp_exit_bad	; No match leaves with exit 1, else continues
     cmp al, 0		; Is al string terminator?
     je strcmp_exit_ok	; If al is string terminator, bl is too so exit 0
-  jmp strcmp_loop
+    add cx, 1		; Increment the counter
+  jmp strcmp_loop	; Continue looping until an end is reached!
   strcmp_exit_bad:
-    mov dx, 1
-    jmp strcmp_exit
+    mov dx, 1		; Move 1 to dx to show strings don't match
+    jmp strcmp_exit	; Skip to exit
   strcmp_exit_ok:
-    mov dx, 0
+    mov dx, 0		; Move 0 to dx to show strings do match
   strcmp_exit:
     mov [0x7f00], dx	; dx is the return address for all procedures right now
   popa
-  mov dx, [0x7f00]
+  mov dx, [0x7f00]	; Set dx to the proper value
   ret
 
 ; PARAM: ax holds address of string to print
@@ -82,10 +83,10 @@ print:
     mov bx, [0x7f00]	; bx is used to hold address we point to get vals from
     add bx, cx		; Offset the address by the counter to get the correct char to print
     mov al, [bx]	; al is value to print with BIOS int 10h, mov char directly from mem
-    add bx, 0x00ff	; This is for fun, a mem offset to hold copy of what's printed last
-    mov [bx], al	; Push the current char to mem location with copy of string
     cmp al, 0		; Is the current char a string terminator (\0)?
     je print_exit	; If so, leave. If not, ignored
+    add bx, 0x00ff	; This is for fun, a mem offset to hold copy of what's printed last
+    mov [bx], al	; Push the current char to mem location with copy of string
     int 0x10		; Let's print the curr char!
     add cx, 1		; Increment counter so we don't print the first letter forevermore!
     jmp print_loop	; Move along to the next character
@@ -122,20 +123,25 @@ read:
   mov [0x7f00], ax	; Let's store ax's value (another mem address) at this address in memory
   pusha			; Sloppy cleanrooming
   mov dx, bx		; We want to have bx free for memory addressing so dx holds the value to terminate reading
-  mov cx, 0		; Yet ANOTHER counter to offset where the current char is stored in memory
+  read_reset:
+  mov bx, [0x7f00]	; Let's get the memory address to store the char read to
   read_loop:
     mov ah, 0		; ah 0 with BIOS int 16h means get keystroke from keyboard
     int 16h		; Let's get the keystroke (value is stored in al)
+    mov [bx], al	; Let's put the char value to the address in mem
     cmp al, dl		; Is the keystroke is our read terminator (dx)?
     je read_exit	; If so, exit. If no, go on...
-    mov bx, [0x7f00]	; Let's get the memory address to store the char read to
-    add bx, cx		; Let's apply the offset so we dont overwrite the 1st char
-    mov [bx], al	; Let's put the char value to the address in mem
-    add cx, 1		; Moving on... (to the next address)
+    add bx, 1		; Let's move to the next address to store next char
     call printc		; Let's print the current char (already setup for us, printc sets ah for us to print properly)
+    cmp al, 8		; Was the key backspace?
+    je read_backspace	; If so we shall overwrite current character (need to decrement or bug)
     jmp read_loop	; Continue until we reach the terminator
+  read_backspace:
+    sub bx, 2		; We go to the last char address in mem
+    cmp bx, [0x7f00]	; Is the address in bx < the original address given?
+    jl read_reset	; Start from the top if so, that way we don't screw up other mem locations
+    jmp read_loop	; Default if the current address >= the original address given
   read_exit:		; The exit point for the above loop
-    add bx, cx		; Let's do one more address in memory because this is a string of text we have been reading
     mov ax, 0		; Let's terminate that string properly for future use
     mov [bx], ax	; Let's put that in memory so the string is complete
   call printl		; Pretty print after the terminator has been made!
