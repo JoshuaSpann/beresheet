@@ -4,6 +4,14 @@ org 0x7c00		; Set the base address offset for bootloader
 call scb
 mov ax, os		; print param: the address of the string to print
 call print		; Let's print until we find a string terminator (0)!
+;call vprint
+
+;mov ax, 0xb800
+;mov ds, ax
+;mov ah, 0x0f
+;mov al, 97
+;mov [0000], ax
+
 
 input_loop:
   mov ax, '>'		; printc param: Char to print (ASCII value)
@@ -42,6 +50,8 @@ msg_cmd_invalid: db 'Invalid Command',0
 ;----------------;
 
 ; PROCEDURES ;
+
+;include 'video.asm'
 
 ; PARAM: ax holds address of first string to compare
 ; PARAM: bx holds address of second string to compare
