@@ -2,10 +2,7 @@
 org 0x7c00		; Set the base address offset for bootloader
 
 call scb
-mov ax, os		; print param: the address of the string to print
-call print		; Let's print until we find a string terminator (0)!
-;call vprint
-
+call printos
 ;mov ax, 0xb800
 ;mov ds, ax
 ;mov ah, 0x0f
@@ -25,6 +22,12 @@ input_loop:
   call strcmp		; Compare string at addresses ax to string at address bx
   cmp dx, 0		; If strings match
   je clear_screen
+
+  mov bx, cmd_os
+  call strcmp
+  cmp dx, 0
+  jne input_loop
+  call printos
 jmp input_loop		; Let's make it like a terminal
 
 print_invalid_command_msg:
@@ -44,12 +47,21 @@ jmp $			; Forever jump to the address of the current position before emitting th
 
 os: db 'beresheet',0	; An unimportant string that we can overwrite
 cmd_cls: db 'cls',0
+cmd_os: db 'os',0
 cmd_tst: db 'tst',0
 msg_cmd_invalid: db 'Invalid Command',0
 
 ;----------------;
 
 ; PROCEDURES ;
+
+printos:
+  pusha
+  mov ax, os		; print param: the address of the string to print
+  call print		; Let's print until we find a string terminator (0)!
+  ;call vprint
+  popa
+  ret
 
 ;include 'video.asm'
 
