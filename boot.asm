@@ -3,12 +3,6 @@ org 0x7c00		; Set the base address offset for bootloader
 
 call scb
 call printos
-;mov ax, 0xb800
-;mov ds, ax
-;mov ah, 0x0f
-;mov al, 97
-;mov [0000], ax
-
 
 input_loop:
   mov ax, '>'		; printc param: Char to print (ASCII value)
@@ -208,13 +202,93 @@ scb:
 times 510-($-$$) db 0	; Let's do 0s because no partitions or FS right now
 dw 0xaa55		; Magic number to say "Hi, I'm Bootsector!"
 
+;-----------------;
 ;  SECOND SECTOR  ;
+;-----------------;
 
 stage_2:
-  mov ax, msg_stage2
-  call print
+
+mov ax, msg_stage2
+call print
+
+call shell
+
+;include 'video.asm'
+;mov ax, msg_stage2
+;call vprint
+
+use16
+mov ax, cmd_exit
+call print
 
 cli
 hlt
 
+;  Minimalist shell better than the one at the start  ;
+
+shell:
+  pusha
+  shell_loop:
+    mov ax, '>'		; printc param: Char to print (ASCII value)
+    call printc		; Let's print the char in ax!
+    mov ax, 0x9000	; read param: address to read to
+    mov bx, 13		; read param: what terminates read input (enter key)
+    call read		; Let's read data until the char in bx is pressed
+
+    mov bx, cmd_exit	; Check for 'exit' command
+    call strcmp		; Perform check
+    cmp dx, 0		; Is the cmd 'exit'?
+    je shell_exit	; Exit safely if so
+
+    ; Print Char to Video Memory Demo Command
+    mov bx, cmd_vpc
+    call strcmp
+    cmp dx, 0
+    je vid_print_char
+
+    ; Clear Screen Command
+    mov bx, cmd_cls
+    call strcmp
+    cmp dx, 0
+    je screen_clear
+
+  jmp shell_loop
+  shell_exit:
+  popa
+  ret
+
+screen_clear:
+  call scb
+  jmp shell_loop
+
+vid_print_char:
+  call vpc
+  mov ax, msg_success
+  call print
+  jmp shell_loop
+
+vpc:
+  push ds
+  pusha
+  mov ax, 0xb800
+  mov ds, ax
+  mov ah, 0x0f
+  mov al, 97
+  mov [0000], ax
+  popa
+  pop ds
+  ret
+
+
+cmd_exit db 'exit',0
+cmd_vpc db 'vpc',0
 msg_stage2 db 'LOADED STAGE 2!',0
+msg_success db ':)',0
+
+; Basics for screen printing
+;mov ax, 0xb800
+;mov ds, ax
+;mov ah, 0x0f
+;mov al, 97
+;mov [0000], ax
+
