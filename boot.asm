@@ -23,6 +23,11 @@ input_loop:
   cmp dx, 0		; If strings match
   je clear_screen
 
+  mov bx, cmd_load
+  call strcmp
+  cmp dx, 0
+  je load_sector
+
   mov bx, cmd_os
   call strcmp
   cmp dx, 0
@@ -41,12 +46,24 @@ clear_screen:
 
 jmp $			; Forever jump to the address of the current position before emitting the bytes
 
+load_sector:
+  mov ah, 0x02
+  mov al, 1		; # sectors to read
+  mov dl, 0x80		; Unnecessary?
+  mov ch, 0		; Cylinder num
+  mov dh, 0		; Head number
+  mov cl, 2		; Starting sector number
+  mov bx, stage_2	; Where to load to
+  int 0x13		; BIOS Call disk
+  jmp stage_2		; We have to actually jump there
+
 ;----------------;
 
 ; Variables ;
 
 os: db 'beresheet',0	; An unimportant string that we can overwrite
 cmd_cls: db 'cls',0
+cmd_load: db 'load',0
 cmd_os: db 'os',0
 cmd_tst: db 'tst',0
 msg_cmd_invalid: db 'Invalid Command',0
@@ -190,3 +207,14 @@ scb:
 
 times 510-($-$$) db 0	; Let's do 0s because no partitions or FS right now
 dw 0xaa55		; Magic number to say "Hi, I'm Bootsector!"
+
+;  SECOND SECTOR  ;
+
+stage_2:
+  mov ax, msg_stage2
+  call print
+
+cli
+hlt
+
+msg_stage2 db 'LOADED STAGE 2!',0
