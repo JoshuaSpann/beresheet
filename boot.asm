@@ -1,5 +1,31 @@
-; This was written for FASM, may need adjustments for NASM
 org 0x7c00		; Set the base address offset for bootloader
+jmp short start
+nop
+
+DiskLabel		db "BERESHEET"
+BytesPerSector		dw 512
+SectorsPerCluster	db 1
+BootRecdReservedSectors	dw 1
+NumberFATs		db 2
+RootDirEntries		dw 224
+NumLogicalSectors	dw 2880
+MediumDescriptiorByte	db 0x0f0
+SectorsPerFat		dw 9
+SectorsPerTrack		dw 18
+NumSides		dw 2
+NumHiddenSectors	dd 0
+NumLargeSectors		dd 0
+DriveNum		dw 0
+DriveSignature		db 41		; 41 is for floppy
+VolumeId		dd 0x00000000
+VolumeLabel		db "BERESHEET  "; 11 chars total, absolute
+FileSystem		db "FAT12   "
+
+
+
+start:
+; This was written for FASM, may need adjustments for NASM
+;org 0x7c00		; Set the base address offset for bootloader
 
 call scb
 call printos
@@ -213,9 +239,9 @@ call print
 
 call shell
 
-;include 'video.asm'
-;mov ax, msg_stage2
-;call vprint
+include 'video.asm'
+mov ax, msg_stage2
+call vprint
 
 use16
 mov ax, cmd_exit
@@ -229,11 +255,10 @@ hlt
 shell:
   pusha
   shell_loop:
-    mov ax, '>'		; printc param: Char to print (ASCII value)
-    call printc		; Let's print the char in ax!
-    mov ax, 0x9000	; read param: address to read to
-    mov bx, 13		; read param: what terminates read input (enter key)
-    call read		; Let's read data until the char in bx is pressed
+    mov ax, 0x9000	; Load last command to vprint
+    call vprint		; Print to video
+
+    call prompt
 
     mov bx, cmd_exit	; Check for 'exit' command
     call strcmp		; Perform check
@@ -246,20 +271,37 @@ shell:
     cmp dx, 0
     je vid_print_char
 
-    ; Clear Screen Command
+    ; Clear Screen Command (BIOS)
     mov bx, cmd_cls
     call strcmp
     cmp dx, 0
     je screen_clear
+
+    ; Warm Reboot Command (BIOS)
+    mov bx, cmd_reboot
+    call strcmp
+    cmp dx, 0
+    je rebootb_warm
 
   jmp shell_loop
   shell_exit:
   popa
   ret
 
+prompt:
+    mov ax, '>'		; printc param: Char to print (ASCII value)
+    call printc		; Let's print the char in ax!
+    mov ax, 0x9000	; read param: address to read to
+    mov bx, 13		; read param: what terminates read input (enter key)
+    call read		; Let's read data until the char in bx is pressed
+    ret
+
 screen_clear:
   call scb
   jmp shell_loop
+
+rebootb_warm:
+  int 0x19
 
 vid_print_char:
   call vpc
@@ -281,6 +323,7 @@ vpc:
 
 
 cmd_exit db 'exit',0
+cmd_reboot db 'reboot',0
 cmd_vpc db 'vpc',0
 msg_stage2 db 'LOADED STAGE 2!',0
 msg_success db ':)',0
