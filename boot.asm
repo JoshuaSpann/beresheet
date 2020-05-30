@@ -46,7 +46,7 @@ input_loop:
   mov bx, cmd_load
   call strcmp_bios
   cmp dx, 0
-  je load_sector
+  je load_stage2
 
   mov bx, cmd_os
   call strcmp_bios
@@ -66,16 +66,26 @@ clear_screen:
 
 jmp $			; Forever jump to the address of the current position before emitting the bytes
 
-load_sector:
+load_stage2:
+  mov ax, 2
+  mov bx, stage_2
+  call load_sector_bios
+
+; PARAM: ax holds the sector number to load
+; PARAM: bx holds the proc/address to load
+load_sector_bios:
+  push bx
+  push ax
   mov ah, 0x02
   mov al, 1		; # sectors to read
   mov dl, 0x80		; Unnecessary?
   mov ch, 0		; Cylinder num
   mov dh, 0		; Head number
-  mov cl, 2		; Starting sector number
-  mov bx, stage_2	; Where to load to
+  pop bx		; Load the sector number to start op at
+  mov cl, bl		; Starting sector number
+  pop bx		; bx is Where to load to ; mov bx, stage_2
   int 0x13		; BIOS Call disk
-  jmp stage_2		; We have to actually jump there
+  jmp bx		; We have to actually jump there
 
 ;----------------;
 
@@ -266,7 +276,7 @@ shell:
     mov bx, cmd_cls
     call strcmp_bios
     cmp dx, 0
-    je screen_clear_bios
+    je screen_clear
 
     ; Warm Reboot Command (BIOS)
     mov bx, cmd_reboot
@@ -293,12 +303,6 @@ screen_clear:
 
 reboot_warm_bios:
   int 0x19
-
-;vid_print_char:
-;  call vpc
-;  mov ax, msg_success
-;  call print
-;  jmp shell_loop
 
 
 cmd_exit db 'exit',0
