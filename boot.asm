@@ -317,5 +317,5 @@ cmd_reboot db 'reboot',0
 msg_stage2 db 'LOADED STAGE 2!',0
 msg_success db ':)',0
 
-;times 510-($-$$) db 0	; Let's do 0s because no partitions or FS right now
+;times 512-($-$$) db 0	; Let's do 0s because no partitions or FS right now
 ;dw 0xaa55		; Magic number to say "Hi, I'm Bootsector!"
