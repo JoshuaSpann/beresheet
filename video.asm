@@ -35,3 +35,27 @@ vprint:
   ret			; Return to sender
 
 
+;  PARAM: ax is y coordinate
+;  PARAM: bx is x coordinate
+vcursor_move:
+  push ds
+  pusha
+  mov dl, 80		; VGA width
+  mul dl
+  add bx, ax
+  vcursor_move_set_offset:
+    mov dx, 0x03d4
+    mov al, 0x0f
+    out dx, al
+    inc dl
+    mov al, bl
+    out dx, al
+    dec dl
+    mov al, 0x0e
+    out dx, al
+    inc dl
+    mov al, bh
+    out dx, al
+  popa
+  pop ds
+  ret

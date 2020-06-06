@@ -1,32 +1,32 @@
+; This was written for FASM, may need adjustments for NASM
+
 org 0x7c00		; Set the base address offset for bootloader
 jmp short start
 nop
 
-DiskLabel		db "BERESHEET"
-BytesPerSector		dw 512
-SectorsPerCluster	db 1
-BootRecdReservedSectors	dw 1
-NumberFATs		db 2
-RootDirEntries		dw 224
-NumLogicalSectors	dw 2880
-MediumDescriptiorByte	db 0x0f0
-SectorsPerFat		dw 9
-SectorsPerTrack		dw 18
-NumSides		dw 2
-NumHiddenSectors	dd 0
-NumLargeSectors		dd 0
-DriveNum		dw 0
-DriveSignature		db 41		; 41 is for floppy
-VolumeId		dd 0x00000000
+; For defining a FAT filesystem/volume
+DiskLabel		db "BERESHEET"	; What the disk is called
+BytesPerSector		dw 512		; 1 sector is 512 bytes long
+SectorsPerCluster	db 1		; 1 cluster is 1 sectors
+BootRecdReservedSectors	dw 2		; 2 reserved because we load stage_2
+NumberFATs		db 2		; Number of FAT tables (2 standard)
+RootDirEntries		dw 224		; Max number items in root dir (for floppy disks)
+NumLogicalSectors	dw 2880		; Total sectors in disk (2880 in floppy)
+MediumDescriptiorByte	db 0x0f0	; Disk info, bits: 0=sides/heads(0=single,1=double); 1=size(0=9sectorsPerFat,1=8sectorsPerFat); 2=density(0=80tracks,1=40tracks); 3=type(0=fixedDisk/hdd,1=removable/floppy); 4-7=unused(always val of 1)
+SectorsPerFat		dw 9		; Actual sectors per fat (like bit 1); bit 1 is set to 9 so we define that here
+SectorsPerTrack		dw 18		; 18 sectors per track on floppy
+NumSides		dw 2		; 2 heads represent 1 cylinder
+NumHiddenSectors	dd 0		; Number sectors from strt of disk and start of volume
+NumLargeSectors		dd 0		; Number of big/huge lba sectors
+DriveNum		dw 0		; Floppy is drive 0
+DriveSignature		db 41		; 41 is for ms-dos floppy
+VolumeId		dd 0x00000000	; Serial number assigned by util that formats the disk, unique to disk
 VolumeLabel		db "BERESHEET  "; 11 chars total, absolute
-FileSystem		db "FAT12   "
+FileSystem		db "FAT12   "	; 8 chars total, absolute!!!
 
 
 
 start:
-; This was written for FASM, may need adjustments for NASM
-;org 0x7c00		; Set the base address offset for bootloader
-
 call screen_clear_bios
 call printos
 
@@ -76,7 +76,10 @@ load_stage2:
 load_sector_bios:
   push bx
   push ax
-  mov ah, 0x02
+  mov al, 0x00		; Reset floppy disk
+  mov dl, 0x00		; Drive to reset
+  int 0x13		; BIOS call disk
+  mov ah, 0x02		; Read sector
   mov al, 1		; # sectors to read
   mov dl, 0x80		; Unnecessary?
   mov ch, 0		; Cylinder num
@@ -262,13 +265,17 @@ hlt
 shell:
   pusha
   shell_loop:
+    mov ax, 4
+    mov bx, 8
+    call vcursor_move
+
     mov ax, 0x9000	; Load last command to vprint
     call vprint		; Print to video
 
     call prompt
 
     mov bx, cmd_exit	; Check for 'exit' command
-    call strcmp_bios		; Perform check
+    call strcmp_bios	; Perform check
     cmp dx, 0		; Is the cmd 'exit'?
     je shell_exit	; Exit safely if so
 
@@ -310,3 +317,5 @@ cmd_reboot db 'reboot',0
 msg_stage2 db 'LOADED STAGE 2!',0
 msg_success db ':)',0
 
+;times 510-($-$$) db 0	; Let's do 0s because no partitions or FS right now
+;dw 0xaa55		; Magic number to say "Hi, I'm Bootsector!"
